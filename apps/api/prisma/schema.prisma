@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PRO
+  CLIENT
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  REQUIRES_PAYMENT
+  PAID
+  REFUNDED
+  FAILED
+}
+
+enum PaymentProvider {
+  STRIPE
+}
+
+enum ScheduleExceptionType {
+  EXTEND
+  BLOCK
+}
+
+enum EmailJobType {
+  REMINDER
+  CONFIRMATION
+  RESET_PASSWORD
+}
+
+model Organization {
+  id        String      @id @default(uuid())
+  name      String
+  slug      String      @unique
+  logoUrl   String?
+  address   String?
+  timezone  String
+  createdAt DateTime    @default(now())
+  users     User[]
+  services  Service[]
+  professionals Professional[]
+  appointments Appointment[]
+}
+
+model User {
+  id           String    @id @default(uuid())
+  orgId        String
+  organization Organization @relation(fields: [orgId], references: [id])
+  role         Role
+  name         String
+  email        String    @unique
+  phone        String?
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  professional Professional?
+  appointments Appointment[] @relation("ClientAppointments")
+}
+
+model Service {
+  id          String      @id @default(uuid())
+  orgId       String
+  organization Organization @relation(fields: [orgId], references: [id])
+  name        String
+  durationMin Int
+  priceCents  Int
+  active      Boolean     @default(true)
+  appointments Appointment[]
+}
+
+model Professional {
+  id           String      @id @default(uuid())
+  orgId        String
+  organization Organization @relation(fields: [orgId], references: [id])
+  userId       String      @unique
+  user         User        @relation(fields: [userId], references: [id])
+  bio          String?
+  active       Boolean     @default(true)
+  workingHours WorkingHour[]
+  scheduleExceptions ScheduleException[]
+  appointments Appointment[] @relation("ProfessionalAppointments")
+}
+
+model WorkingHour {
+  id             String       @id @default(uuid())
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id])
+  weekday        Int          // 0 = Sunday, 6 = Saturday
+  startTime      String       // e.g., "09:00"
+  endTime        String       // e.g., "18:00"
+  slotMinutes    Int
+
+  @@unique([professionalId, weekday])
+}
+
+model ScheduleException {
+  id             String              @id @default(uuid())
+  professionalId String
+  professional   Professional        @relation(fields: [professionalId], references: [id])
+  startDateTime  DateTime
+  endDateTime    DateTime
+  type           ScheduleExceptionType
+}
+
+model Appointment {
+  id             String          @id @default(uuid())
+  orgId          String
+  organization   Organization    @relation(fields: [orgId], references: [id])
+  clientId       String
+  client         User            @relation("ClientAppointments", fields: [clientId], references: [id])
+  professionalId String
+  professional   Professional    @relation("ProfessionalAppointments", fields: [professionalId], references: [id])
+  serviceId      String
+  service        Service         @relation(fields: [serviceId], references: [id])
+  startsAt       DateTime
+  endsAt         DateTime
+  status         AppointmentStatus @default(PENDING)
+  notes          String?
+  payment        Payment[]
+
+  @@index([orgId, startsAt])
+  @@index([professionalId, startsAt])
+  @@index([clientId, startsAt])
+}
+
+model Payment {
+  id            String          @id @default(uuid())
+  appointmentId String          @unique
+  appointment   Appointment     @relation(fields: [appointmentId], references: [id])
+  provider      PaymentProvider
+  status        PaymentStatus
+  amountCents   Int
+  currency      String
+  providerRef   String?
+}
+
+model EmailJob {
+  id        String       @id @default(uuid())
+  type      EmailJobType
+  runAt     DateTime
+  payload   Json
+  status    String       @default("PENDING")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([runAt, status])
+}
+
