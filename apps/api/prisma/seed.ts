@@ -13,9 +13,7 @@ async function main() {
       slug: 'barbearia-central',
       logoUrl: 'https://via.placeholder.com/200x200?text=BC',
       address: 'Rua das Flores, 123 - Centro, São Paulo - SP',
-      phone: '(11) 99999-9999',
-      email: 'contato@barbeariacentral.com.br',
-      website: 'https://barbeariacentral.com.br',
+      timezone: 'America/Sao_Paulo',
     },
   });
 
@@ -52,8 +50,8 @@ async function main() {
   const professional1 = await prisma.professional.create({
     data: {
       userId: professional1User.id,
+      orgId: organization.id,
       bio: 'Especialista em cortes clássicos e modernos, com mais de 10 anos de experiência.',
-      specialties: ['Corte', 'Barba', 'Bigode'],
       active: true,
     },
   });
@@ -73,8 +71,8 @@ async function main() {
   const professional2 = await prisma.professional.create({
     data: {
       userId: professional2User.id,
+      orgId: organization.id,
       bio: 'Especialista em cortes modernos e design de sobrancelhas.',
-      specialties: ['Corte', 'Sobrancelha', 'Relaxamento'],
       active: true,
     },
   });
@@ -86,7 +84,6 @@ async function main() {
     prisma.service.create({
       data: {
         name: 'Corte Simples',
-        description: 'Corte de cabelo tradicional',
         durationMin: 30,
         priceCents: 2500, // R$ 25,00
         active: true,
@@ -96,7 +93,6 @@ async function main() {
     prisma.service.create({
       data: {
         name: 'Corte + Barba',
-        description: 'Corte de cabelo + barba completa',
         durationMin: 45,
         priceCents: 4500, // R$ 45,00
         active: true,
@@ -106,7 +102,6 @@ async function main() {
     prisma.service.create({
       data: {
         name: 'Barba',
-        description: 'Barba completa com navalha',
         durationMin: 20,
         priceCents: 2000, // R$ 20,00
         active: true,
@@ -116,7 +111,6 @@ async function main() {
     prisma.service.create({
       data: {
         name: 'Sobrancelha',
-        description: 'Design de sobrancelha masculina',
         durationMin: 15,
         priceCents: 1500, // R$ 15,00
         active: true,
@@ -126,7 +120,6 @@ async function main() {
     prisma.service.create({
       data: {
         name: 'Relaxamento',
-        description: 'Relaxamento capilar',
         durationMin: 60,
         priceCents: 8000, // R$ 80,00
         active: true,
@@ -142,38 +135,34 @@ async function main() {
     // Carlos - Segunda a Sexta
     ...Array.from({ length: 5 }, (_, i) => ({
       professionalId: professional1.id,
-      dayOfWeek: i + 1, // 1 = Segunda, 5 = Sexta
+      weekday: i + 1, // 1 = Segunda, 5 = Sexta
       startTime: '08:00',
       endTime: '18:00',
-      slotDurationMin: 30,
-      active: true,
+      slotMinutes: 30,
     })),
     // Carlos - Sábado
     {
       professionalId: professional1.id,
-      dayOfWeek: 6, // Sábado
+      weekday: 6, // Sábado
       startTime: '08:00',
       endTime: '14:00',
-      slotDurationMin: 30,
-      active: true,
+      slotMinutes: 30,
     },
     // André - Segunda a Sexta
     ...Array.from({ length: 5 }, (_, i) => ({
       professionalId: professional2.id,
-      dayOfWeek: i + 1,
+      weekday: i + 1,
       startTime: '09:00',
       endTime: '19:00',
-      slotDurationMin: 30,
-      active: true,
+      slotMinutes: 30,
     })),
     // André - Sábado
     {
       professionalId: professional2.id,
-      dayOfWeek: 6,
+      weekday: 6,
       startTime: '09:00',
       endTime: '15:00',
-      slotDurationMin: 30,
-      active: true,
+      slotMinutes: 30,
     },
   ];
 
@@ -232,22 +221,24 @@ async function main() {
   const appointments = await Promise.all([
     prisma.appointment.create({
       data: {
+        orgId: organization.id,
         clientId: clients[0].id,
         professionalId: professional1.id,
         serviceId: services[1].id, // Corte + Barba
-        startTime: tomorrow,
-        endTime: new Date(tomorrow.getTime() + 45 * 60000), // +45 min
+        startsAt: tomorrow,
+        endsAt: new Date(tomorrow.getTime() + 45 * 60000), // +45 min
         status: AppointmentStatus.CONFIRMED,
         notes: 'Cliente preferencial, corte baixo nas laterais',
       },
     }),
     prisma.appointment.create({
       data: {
+        orgId: organization.id,
         clientId: clients[1].id,
         professionalId: professional2.id,
         serviceId: services[0].id, // Corte Simples
-        startTime: dayAfterTomorrow,
-        endTime: new Date(dayAfterTomorrow.getTime() + 30 * 60000), // +30 min
+        startsAt: dayAfterTomorrow,
+        endsAt: new Date(dayAfterTomorrow.getTime() + 30 * 60000), // +30 min
         status: AppointmentStatus.PENDING,
         notes: 'Primeira vez na barbearia',
       },

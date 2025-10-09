@@ -42,6 +42,9 @@ export class AuthService {
     });
 
     const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new UnauthorizedException("User not found after registration");
+    }
 
     return this.generateJwtToken(user.id, user.email, user.role, organization.id);
   }
@@ -60,6 +63,9 @@ export class AuthService {
     }
 
     const organization = await this.prisma.organization.findUnique({ where: { id: user.orgId } });
+    if (!organization) {
+      throw new UnauthorizedException("Organization not found for user");
+    }
 
     return this.generateJwtToken(user.id, user.email, user.role, organization.id);
   }

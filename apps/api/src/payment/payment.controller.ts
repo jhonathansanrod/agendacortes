@@ -1,10 +1,10 @@
-import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, Req, Headers } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, Req, Headers, RawBody as NestRawBody } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { CreateCheckoutSessionDto } from './dto/create-checkout-session.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
 import type { User } from '@prisma/client';
-import { Request } from 'express';
+import type { Request } from 'express';
 
 @Controller('payments')
 export class PaymentController {
@@ -23,10 +23,10 @@ export class PaymentController {
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
   handleStripeWebhook(
-    @Headers('stripe-signature') signature: string,
-    @Req() req: Request,
+    @Headers("stripe-signature") signature: string,
+    @NestRawBody() rawBody: Buffer,
   ) {
-    return this.paymentService.handleStripeWebhook(signature, req.rawBody);
+    return this.paymentService.handleStripeWebhook(signature, rawBody);
   }
 }
 

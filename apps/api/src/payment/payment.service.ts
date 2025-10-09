@@ -9,8 +9,11 @@ export class PaymentService {
   private stripe: Stripe;
 
   constructor(private prisma: PrismaService) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY is not defined");
+    }
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2024-06-20',
+      apiVersion: '2025-09-30.clover',
     });
   }
 
@@ -19,14 +22,14 @@ export class PaymentService {
 
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: appointmentId, orgId },
-      include: { service: true, client: true, professional: { include: { user: true } } },
+      include: { service: true, client: true, professional: { include: { user: true } }, organization: true },
     });
 
     if (!appointment) {
       throw new NotFoundException(`Appointment with ID "${appointmentId}" not found.`);
     }
 
-    if (appointment.status === PaymentStatus.PAID) {
+    if (appointment.status === AppointmentStatus.CONFIRMED) {
       throw new BadRequestException('Appointment is already paid.');
     }
 
@@ -73,7 +76,10 @@ export class PaymentService {
     let event: Stripe.Event;
 
     try {
-      event = this.stripe.webhooks.constructEvent(rawBody, signature, process.env.STRIPE_WEBHOOK_SECRET);
+    if (!process.env.STRIPE_WEBHOOK_SECRET) {
+      throw new Error("STRIPE_WEBHOOK_SECRET is not defined");
+    }
+    event = this.stripe.webhooks.constructEvent(rawBody, signature, process.env.STRIPE_WEBHOOK_SECRET);
     } catch (err) {
       throw new BadRequestException(`Webhook Error: ${err.message}`);
     }
@@ -83,20 +89,26 @@ export class PaymentService {
 
     switch (event.type) {
       case 'checkout.session.completed':
-        await this.prisma.payment.update({
-          where: { providerRef: event.data.object["id"] },
-          data: { status: PaymentStatus.PAID },
-        });
+        const payment = await this.prisma.payment.findFirst({ where: { providerRef: event.data.object["id"] } });
+        if (payment) {
+          await this.prisma.payment.update({
+            where: { id: payment.id },
+            data: { status: PaymentStatus.PAID },
+          });
+        }
         await this.prisma.appointment.update({
           where: { id: appointmentId, orgId },
           data: { status: AppointmentStatus.CONFIRMED },
         });
         break;
       case 'checkout.session.async_payment_failed':
-        await this.prisma.payment.update({
-          where: { providerRef: event.data.object["id"] },
-          data: { status: PaymentStatus.FAILED },
-        });
+        const failedPayment = await this.prisma.payment.findFirst({ where: { providerRef: event.data.object["id"] } });
+        if (failedPayment) {
+          await this.prisma.payment.update({
+            where: { id: failedPayment.id },
+            data: { status: PaymentStatus.FAILED },
+          });
+        }
         // Optionally, update appointment status or notify admin
         break;
       // Handle other event types as needed
